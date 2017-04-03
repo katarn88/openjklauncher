@@ -36,6 +36,9 @@ if sys.platform.startswith('linux'):
     print 'Running on Linux'
 cancel = 0
 
+modlist = ["base"]
+activemod = "base"
+
 ##TODO add support for Windows and OSX
 
 
@@ -73,7 +76,7 @@ def check_directory():
 def create_file():
     if not os.path.isfile(configfile):
         file = open(configfile, 'w+')
-        file.write('#mod "0"\n')
+        file.write('#mod base\n')
         file.write('seta r_mode "4"\n')
         file.write('seta r_fullscreen "0"\n')
         file.write('seta r_noborder "0"\n')
@@ -89,24 +92,37 @@ def create_openjk_config(path):
     with open(path, "wb") as config_file:
         config.write(config_file)
 
+def load_mods(self):
+    global modlist
+    # This list is for directories that do not contain mods
+    blacklist = ["base", "OpenJK"]
+
+    for entry in os.listdir(gamedir):
+        if (entry not in blacklist and
+          os.path.isdir(os.path.join(gamedir, entry))):
+            modlist.append(entry)
+
+    modlist.sort()
+
+    for i in range(0, len(modlist)):
+        self.modlist.insert_text(i + 1, modlist[i])
+
 
 def check_settings(self):
     # Check for fullscreen
     global gamedir
+    global activemod
     config = ConfigParser.ConfigParser()
     config.read(path)
     gamedir = config.get("Path", "Folder")
     print ("Game dir is : " + gamedir)
-    if os.path.isdir(gamedir + '/japlus'):
-        self.modlist.insert_text(1, 'Ja ++')
 
-    if os.path.isdir(gamedir + '/MBII'):
-        self.modlist.insert_text(2, 'MBII')
+    load_mods(self)
 
     if os.path.isfile(configfile):
-	fd = open(configfile)
-	fbuf = fd.read()
-	fd.close()
+        fd = open(configfile)
+        fbuf = fd.read()
+        fd.close()
         if 'seta r_fullscreen "1"' in fbuf:
             print "Fullscreen is on"
             self.checkbutton.set_active(True)
@@ -129,15 +145,19 @@ def check_settings(self):
             self.comboboxtext.set_active(1)
 
             # check for mods
-
-        if '#mod "1"' in fbuf:
-            print "Mod is set to Ja++"
-            self.modlist.set_active(1)
-            exe = gamedir + '/openjk.x86_64 +set fs_game japlus'
-        if '#mod "0"' in fbuf:
-            print "Mod is not set"
+        for line in fbuf.split("\n"):
+            if (line[0:5] == "#mod "):
+                activemod = line[5:].strip(" \t\r\n")
+        if activemod != "base":
+            if activemod not in modlist:
+                print "Error:", activemod, "no such mod"
+                activemod = False
+                return
+            self.modlist.set_active(modlist.index(activemod))
+            print "Active mod:", activemod
+        else:
+            print "No mod selected"
             self.modlist.set_active(0)
-            exe = gamedir + '/openjk.x86_64'
 
 
 ##################### Install script ###################
@@ -226,6 +246,11 @@ class launcher:
         if not os.path.exists(path):
             create_openjk_config(path)
         check_settings(self)
+        # WARN: later change these to use os.path.join()
+        if activemod != "base":
+            exe = gamedir + "/openjk.x86_64 +set fs_game \""+activemod+"\""
+        else:
+            exe = gamedir + "/openjk.x86_64"
 
     def on_ok_folder_clicked(self, widget):
 
@@ -405,13 +430,12 @@ class launcher:
         sound_start.play()
         sound_open = pygame.mixer.Sound(resourcedir + '/start.WAV')
         sound_open.play()
-        if '#mod "1"' in open(configfile).read():
-            exe = gamedir + '/openjk.x86_64 +set fs_game japlus'
-        elif '#mod "0"' in open(configfile).read():
-            exe = gamedir + '/openjk.x86_64'
-        else:
-            exe = gamedir + '/openjk.x86_64'
         self.window.destroy()
+        global exe
+        if activemod != "base":
+            exe = gamedir + "/openjk.x86_64 +set fs_game \"" + activemod + "\""
+        else:
+            exe = gamedir + "/openjk.x86_64"
         system(exe)
 
     def on_back_clicked(self, widget):
@@ -486,21 +510,13 @@ class launcher:
         sound_start.play()
         model = widget.get_model()
         active = widget.get_active()
-        if active == 0:
-            for line in fileinput.FileInput(configfile, inplace=True):
-                if line.strip().startswith('#mod "'):
-                    line = '#mod "0"\n'
-                sys.stdout.write(line)
+        activemod = modlist[active]
+        print activemod
+        for line in fileinput.FileInput(configfile, inplace=True):
+            if line.strip().startswith('#mod "'):
+                line = '#mod ' + activemod
+            sys.stdout.write(line)
 
-        if active == 1:
-            for line in fileinput.FileInput(configfile, inplace=True):
-                if line.strip().startswith('#mod "'):
-                    line = '#mod "1"\n'
-                sys.stdout.write(line)
-            self.modlist.set_active(1)
-
-        if active == 2:
-            system(gamedir + '/openjk.i386 +set fs_game MBII')
 
     def on_install_clicked(self, widget):
         install(self)
