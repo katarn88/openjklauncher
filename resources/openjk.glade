@@ -451,9 +451,6 @@
               <object class="GtkComboBoxText" id="modlist">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <items>
-                  <item translatable="yes">Base Jka</item>
-                </items>
                 <signal name="changed" handler="on_modlist_changed" swapped="no"/>
               </object>
               <packing>

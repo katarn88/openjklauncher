@@ -32,11 +32,12 @@ if sys.platform.startswith('linux'):
     tmpdir = '/tmp'
     path = configdir + '/ojkl.cfg'
     resourcedir = '/usr/share/openjk/resources'
-    exe = gamedir + '/openjk.x86_64'
+    exe = "openjk.x86_64"
+    cmdline = ""
     print 'Running on Linux'
-cancel = 0
+cancel = 0 # what's this?
 
-modlist = ["base"]
+modlist = []
 activemod = "base"
 
 ##TODO add support for Windows and OSX
@@ -101,8 +102,11 @@ def load_mods(self):
         if (entry not in blacklist and
           os.path.isdir(os.path.join(gamedir, entry))):
             modlist.append(entry)
-
+    # Sort the list to ensure it's always in the same order,
+    # assuming it contains the same items
     modlist.sort()
+    # base should always be first in the list
+    modlist.insert(0, "base")
 
     for i in range(0, len(modlist)):
         self.modlist.insert_text(i + 1, modlist[i])
@@ -144,14 +148,15 @@ def check_settings(self):
             print "Resolution is not set to native"
             self.comboboxtext.set_active(1)
 
-            # check for mods
+        # check for mods
         for line in fbuf.split("\n"):
             if (line[0:5] == "#mod "):
-                activemod = line[5:].strip(" \t\r\n")
+                activemod = line[5:].strip(" \t\r\n").strip()
         if activemod != "base":
             if activemod not in modlist:
-                print "Error:", activemod, "no such mod"
-                activemod = False
+                print "Error:", activemod, "no such mod, using base"
+                activemod = "base"
+                self.modlist.set_active(0)
                 return
             self.modlist.set_active(modlist.index(activemod))
             print "Active mod:", activemod
@@ -246,11 +251,6 @@ class launcher:
         if not os.path.exists(path):
             create_openjk_config(path)
         check_settings(self)
-        # WARN: later change these to use os.path.join()
-        if activemod != "base":
-            exe = gamedir + "/openjk.x86_64 +set fs_game \""+activemod+"\""
-        else:
-            exe = gamedir + "/openjk.x86_64"
 
     def on_ok_folder_clicked(self, widget):
 
@@ -426,17 +426,21 @@ class launcher:
         system(gamedir + "/openjk_sp.x86_64 +fs_game 'Openjk'")
 
     def on_multi_clicked(self, widget):
+        global exe
+        global cmdline
+        global activemod
         sound_start = pygame.mixer.Sound(resourcedir + '/click.WAV')
         sound_start.play()
         sound_open = pygame.mixer.Sound(resourcedir + '/start.WAV')
         sound_open.play()
-        self.window.destroy()
-        global exe
+
         if activemod != "base":
-            exe = gamedir + "/openjk.x86_64 +set fs_game \"" + activemod + "\""
+            cmdline = "+set fs_game \"" + activemod + "\""
         else:
-            exe = gamedir + "/openjk.x86_64"
-        system(exe)
+            cmdline = ""
+
+        self.window.destroy()
+        system(os.path.join(gamedir, exe + " " + cmdline))
 
     def on_back_clicked(self, widget):
         sound_start = pygame.mixer.Sound(resourcedir + '/back.WAV')
@@ -506,17 +510,29 @@ class launcher:
             shutil.copy(configfile, configdir + '/autoexec_sp.cfg')
 
     def on_modlist_changed(self, widget):
+        global activemod
+        global configfile
         sound_start = pygame.mixer.Sound(resourcedir + '/click.WAV')
         sound_start.play()
         model = widget.get_model()
         active = widget.get_active()
         activemod = modlist[active]
-        print activemod
-        for line in fileinput.FileInput(configfile, inplace=True):
-            if line.strip().startswith('#mod "'):
-                line = '#mod ' + activemod
-            sys.stdout.write(line)
+        print "Mod changed to:", activemod
 
+        fd = open(configfile, "r+")
+        if not fd:
+            print "Error: failed to open", configfile
+            return
+        buf = fd.read()
+        fd.seek(0, os.SEEK_SET)
+
+        for line in buf.split("\n"):
+            if line[0:5] == "#mod ":
+                fd.write("#mod " + activemod + "\n")
+            elif len(line) > 0:
+                fd.write(line + "\n")
+
+        fd.close()
 
     def on_install_clicked(self, widget):
         install(self)
