@@ -151,7 +151,7 @@ def check_settings(self):
         # check for mods
         for line in fbuf.split("\n"):
             if (line[0:5] == "#mod "):
-                activemod = line[5:].strip(" \t\r\n").strip()
+                activemod = line[5:].strip(" \t\r\n")
         if activemod != "base":
             if activemod not in modlist:
                 print "Error:", activemod, "no such mod, using base"
@@ -525,13 +525,22 @@ class launcher:
             return
         buf = fd.read()
         fd.seek(0, os.SEEK_SET)
+        wrcount = 0
 
         for line in buf.split("\n"):
             if line[0:5] == "#mod ":
-                fd.write("#mod " + activemod + "\n")
+                # would be simpler if write would return how much was written
+                out = "#mod " + activemod + "\n"
+                wrcount = wrcount + len(out)
+                fd.write(out)
             elif len(line) > 0:
-                fd.write(line + "\n")
+                # seriously, why doesn't write return the number of bytes
+                # written?!
+                out = line + "\n"
+                wrcount = wrcount + len(out)
+                fd.write(out)
 
+        fd.truncate(wrcount)
         fd.close()
 
     def on_install_clicked(self, widget):
